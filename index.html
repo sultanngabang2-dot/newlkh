@@ -108,11 +108,11 @@
       vertical-align: top;
     }
 
-    /* Mode khusus saat merender file PDF melalui html2pdf agar garis kanan tidak terpotong */
+    /* Mode khusus saat merender file PDF melalui html2pdf agar garis tabel tampak utuh seperti di Word */
     .pdf-render-mode {
       width: 190mm !important;
       max-width: 190mm !important;
-      padding: 1mm 2mm 1mm 2mm !important;
+      padding: 2mm 3mm 2mm 2mm !important;
       margin: 0 auto !important;
       box-sizing: border-box !important;
       box-shadow: none !important;
@@ -121,15 +121,31 @@
       background: #ffffff !important;
       color: #000000 !important;
       font-family: Arial, Helvetica, sans-serif !important;
+      overflow: visible !important;
     }
     .pdf-render-mode table.lkh-table {
       width: 100% !important;
       border-collapse: collapse !important;
       table-layout: fixed !important;
+      border: 1px solid #000000 !important;
+      margin-bottom: 2mm !important;
     }
-    .pdf-render-mode table.lkh-table th, 
-    .pdf-render-mode table.lkh-table td {
-      border: 1px solid #000 !important;
+    .pdf-render-mode table.lkh-table thead tr th {
+      background-color: #ededed !important;
+      color: #000000 !important;
+      font-weight: bold !important;
+      text-align: center !important;
+      border: 1px solid #000000 !important;
+      padding: 5px 4px !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .pdf-render-mode table.lkh-table tbody tr td {
+      border: 1px solid #000000 !important;
+      padding: 4px 6px !important;
+      line-height: 1.3 !important;
+      font-size: 9.5pt !important;
+      color: #000000 !important;
     }
   </style>
 </head>
@@ -398,16 +414,16 @@
           </div>
 
           <!-- Tabel Utama Lembar Kinerja Harian -->
-          <div class="overflow-x-auto w-full">
+          <div class="overflow-x-auto w-full" style="padding-right: 1px;">
             <table class="lkh-table w-full border-collapse border border-black text-xs sm:text-sm text-left">
               <thead>
-                <tr style="background-color: #f2f2f2;" class="text-center font-bold">
-                  <th style="width: 5%; text-align: center;">No</th>
-                  <th style="width: 25%; text-align: center;">Hari/Tanggal</th>
-                  <th style="width: 12%; text-align: center;">Jam Mulai</th>
-                  <th style="width: 12%; text-align: center;">Jam Selesai</th>
-                  <th style="width: 40%; text-align: center;">Detail Pekerjaan</th>
-                  <th class="no-print" style="width: 6%; text-align: center;">Aksi</th>
+                <tr style="background-color: #ededed;" class="text-center font-bold">
+                  <th style="width: 5%; text-align: center; border: 1px solid #000; padding: 5px 4px;">No</th>
+                  <th style="width: 25%; text-align: center; border: 1px solid #000; padding: 5px 4px;">Hari/Tanggal</th>
+                  <th style="width: 12%; text-align: center; border: 1px solid #000; padding: 5px 4px;">Jam Mulai</th>
+                  <th style="width: 12%; text-align: center; border: 1px solid #000; padding: 5px 4px;">Jam Selesai</th>
+                  <th style="width: 40%; text-align: center; border: 1px solid #000; padding: 5px 4px;">Detail Pekerjaan</th>
+                  <th class="no-print" style="width: 6%; text-align: center; border: 1px solid #000;">Aksi</th>
                 </tr>
               </thead>
               <tbody id="lkhTableBody">
@@ -1080,12 +1096,12 @@
         tr.style.breakInside = "avoid";
         const autoEndTime = row.endTime || getStandardEndTime(row.date);
         tr.innerHTML = `
-          <td class="text-center font-medium" style="border: 1px solid #000;">${index + 1}</td>
-          <td class="font-medium whitespace-nowrap" style="border: 1px solid #000;">${getHariTanggalText(row.date)}</td>
-          <td class="text-center whitespace-nowrap" style="border: 1px solid #000;">${row.startTime || "07.00 WIB"}</td>
-          <td class="text-center whitespace-nowrap" style="border: 1px solid #000;">${autoEndTime}</td>
-          <td class="whitespace-pre-wrap" style="border: 1px solid #000;">${escapeHtml(row.description)}</td>
-          <td class="text-center no-print" style="border: 1px solid #000;">
+          <td class="text-center font-medium" style="border: 1px solid #000; padding: 4.5px 6px; vertical-align: top;">${index + 1}</td>
+          <td class="font-normal" style="border: 1px solid #000; padding: 4.5px 6px; vertical-align: top;">${getHariTanggalText(row.date)}</td>
+          <td class="text-center font-normal whitespace-nowrap" style="border: 1px solid #000; padding: 4.5px 6px; vertical-align: top;">${row.startTime || "07.00 WIB"}</td>
+          <td class="text-center font-normal whitespace-nowrap" style="border: 1px solid #000; padding: 4.5px 6px; vertical-align: top;">${autoEndTime}</td>
+          <td class="whitespace-pre-wrap font-normal" style="border: 1px solid #000; padding: 4.5px 6px; vertical-align: top; line-height: 1.35;">${escapeHtml(row.description)}</td>
+          <td class="text-center no-print" style="border: 1px solid #000; vertical-align: top;">
             <div class="flex items-center justify-center gap-1">
               <button onclick="editItem('${row.id}')" title="Edit" class="p-1.5 text-blue-600 hover:bg-blue-50 rounded">
                 <i class="fa-solid fa-pen-to-square text-xs"></i>
@@ -1111,7 +1127,7 @@
     }
 
     // ==========================================
-    // EKSPOR KE PDF (via html2pdf.js) - Garis Pinggir Kanan Utuh
+    // EKSPOR KE PDF (via html2pdf.js) - Garis Pinggir Kanan Utuh Spt Word
     // ==========================================
     function exportToPdf() {
       const selMonth = parseInt(document.getElementById('filterMonth').value, 10);
@@ -1124,22 +1140,22 @@
       const noPrintEls = printArea.querySelectorAll('.no-print');
       noPrintEls.forEach(el => el.style.display = 'none');
 
-      // Terapkan mode PDF presisi (lebar 190mm dengan batas kanan utuh)
+      // Terapkan mode PDF presisi dengan margin tabel terlindungi
       printArea.classList.add('pdf-render-mode');
 
       const opt = {
-        margin: [8, 8, 8, 8], // Margin pas [atas, kiri, bawah, kanan] dalam mm
+        margin: [8, 8, 8, 8], // Margin seimbang di 4 sisi (mm)
         filename: `Lembar_Kinerja_Harian_${monthName}_${selYear}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { 
-          scale: 2, 
+          scale: 2.5, 
           useCORS: true, 
           scrollY: 0, 
           scrollX: 0,
           logging: false,
           letterRendering: true,
           backgroundColor: '#ffffff',
-          windowWidth: 800
+          windowWidth: 840
         },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         pagebreak: { 
@@ -1148,12 +1164,12 @@
         }
       };
 
-      showToast("Sedang menyusun file PDF...");
+      showToast("Menyiapkan dokumen PDF seperti format Word...");
 
       html2pdf().set(opt).from(printArea).save().then(() => {
         printArea.classList.remove('pdf-render-mode');
         noPrintEls.forEach(el => el.style.display = '');
-        showToast("File PDF berhasil diunduh dengan rapi!");
+        showToast("File PDF berhasil diunduh dengan tabel utuh!");
       }).catch(err => {
         printArea.classList.remove('pdf-render-mode');
         noPrintEls.forEach(el => el.style.display = '');
