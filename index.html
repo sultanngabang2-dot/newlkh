@@ -1,0 +1,1210 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aplikasi Lembar Kinerja Harian (LKH)</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Font Awesome untuk Ikon -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- html2pdf.js CDN untuk Ekspor PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  
+  <!-- Google Font Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    
+    /* Format cetak / Print Styling Presisi Kedinasan */
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: 10mm 12mm 10mm 12mm;
+      }
+      *, *:before, *:after {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        color-adjust: exact !important;
+      }
+      body {
+        background-color: #fff !important;
+        color: #000 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        font-family: Arial, Helvetica, sans-serif !important;
+      }
+      body * {
+        visibility: hidden;
+      }
+      #printArea, #printArea * {
+        visibility: visible;
+      }
+      #printArea {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        border: none !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+      }
+      .no-print {
+        display: none !important;
+        visibility: hidden !important;
+      }
+
+      /* Kunci tabel agar rapi dan tidak terpotong di tengah baris */
+      table.lkh-table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        page-break-inside: auto;
+      }
+      table.lkh-table thead {
+        display: table-header-group !important; /* Ulangi judul kolom jika lembar berlanjut */
+      }
+      table.lkh-table tr {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        page-break-after: auto;
+      }
+      table.lkh-table th, table.lkh-table td {
+        border: 1px solid #000 !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+      }
+
+      /* Kunci blok tanda tangan & catatan agar tidak terbelah */
+      .avoid-break, .footer-doc-block, .sign-table, .notes-wrapper {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+      }
+    }
+
+    .lkh-table th, .lkh-table td {
+      border: 1px solid #000;
+      padding: 4px 6px;
+    }
+
+    /* Mode khusus saat merender file PDF melalui html2pdf */
+    .pdf-render-mode {
+      width: 186mm !important;
+      max-width: 186mm !important;
+      padding: 0 !important;
+      margin: 0 auto !important;
+      box-shadow: none !important;
+      border: none !important;
+      border-radius: 0 !important;
+      background: #ffffff !important;
+      color: #000000 !important;
+      font-family: Arial, Helvetica, sans-serif !important;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- Header & Navigasi -->
+  <header class="bg-emerald-700 text-white shadow-md no-print">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex flex-wrap justify-between items-center gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="p-2.5 bg-emerald-800 rounded-xl">
+          <i class="fa-solid fa-file-invoice text-xl text-emerald-200"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold tracking-tight">E-LKH Madrasah</h1>
+          <p class="text-xs text-emerald-100">Lembar Kinerja Harian Guru & Tenaga Kependidikan</p>
+        </div>
+      </div>
+      
+      <div class="flex items-center space-x-2">
+        <button onclick="toggleBackupModal()" class="px-3 py-2 bg-emerald-800 hover:bg-emerald-900 text-emerald-100 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition">
+          <i class="fa-solid fa-cloud-arrow-down text-sm"></i> Backup / Pulihkan Data
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Kontainer Utama -->
+  <main class="max-w-7xl mx-auto px-4 py-6 w-full flex-1">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- Panel Form Kiri (Input & Pengaturan) -->
+      <div class="lg:col-span-4 space-y-6 no-print">
+        
+        <!-- Tab Navigasi Form -->
+        <div class="bg-white p-2 rounded-2xl shadow-sm border border-slate-200 flex text-sm">
+          <button id="tabInputBtn" onclick="switchTab('input')" class="flex-1 py-2 font-medium rounded-xl text-center bg-emerald-600 text-white transition">
+            <i class="fa-solid fa-plus-circle mr-1"></i> Entri Kegiatan
+          </button>
+          <button id="tabProfileBtn" onclick="switchTab('profile')" class="flex-1 py-2 font-medium rounded-xl text-center text-slate-600 hover:text-emerald-700 transition">
+            <i class="fa-solid fa-user-tie mr-1"></i> Data TTD & Profil
+          </button>
+        </div>
+
+        <!-- Form Tambah Kegiatan -->
+        <div id="sectionInput" class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+          <div class="flex items-center justify-between mb-4 pb-2 border-b">
+            <h2 class="text-base font-semibold text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-calendar-day text-emerald-600"></i> Entri Detail Pekerjaan
+            </h2>
+            <span class="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+              <i class="fa-solid fa-circle text-[6px] text-emerald-500 animate-pulse"></i> Auto-Save Aktif
+            </span>
+          </div>
+
+          <form id="activityForm" onsubmit="handleSaveActivity(event)" class="space-y-4">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Tanggal Kegiatan</label>
+              <input type="date" id="actDate" required class="w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-emerald-500 text-sm">
+              <div id="weekendAlert" class="hidden mt-1.5 p-2 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-lg flex items-center gap-1.5 font-medium">
+                <i class="fa-solid fa-triangle-exclamation"></i> Hari Sabtu & Minggu (Ahad) libur! Tidak dapat menginput pekerjaan.
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Hari & Tanggal Terformat</label>
+              <input type="text" id="actDay" readonly class="w-full px-3 py-2 bg-slate-50 border rounded-xl text-slate-600 text-sm font-medium">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Jam Mulai</label>
+                <input type="text" id="actStart" value="07.00 WIB" required placeholder="07.00 WIB" class="w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-emerald-500 text-sm">
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Jam Selesai (Otomatis)</label>
+                <input type="text" id="actEnd" readonly value="15.30 WIB" required placeholder="15.30 WIB" class="w-full px-3 py-2 bg-slate-50 border rounded-xl font-medium text-slate-700 text-sm">
+              </div>
+            </div>
+
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-xs font-medium text-slate-600">Detail Pekerjaan (Otomatis 1, 2, dst & Kapital)</label>
+                <span class="text-[10px] text-emerald-600 font-medium">Tekan Enter untuk poin baru</span>
+              </div>
+              <textarea id="actDescription" rows="4" required placeholder="1. Mulai tulis rincian pekerjaan di sini..." class="w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm"></textarea>
+            </div>
+
+            <div class="flex gap-2">
+              <button type="submit" id="submitBtn" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl font-medium text-sm transition flex items-center justify-center gap-2 shadow-sm">
+                <i class="fa-solid fa-save"></i> Simpan Kegiatan
+              </button>
+              <button type="button" id="cancelEditBtn" onclick="resetForm()" class="hidden px-3 bg-slate-200 hover:bg-slate-300 text-slate-700 py-2.5 rounded-xl font-medium text-sm transition">
+                Batal
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Form Pengaturan Profil & TTD -->
+        <div id="sectionProfile" class="hidden bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+          <h2 class="text-base font-semibold text-slate-800 mb-4 pb-2 border-b flex items-center gap-2">
+            <i class="fa-solid fa-id-card text-emerald-600"></i> Format Data & Penandatangan
+          </h2>
+
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">SATKER (Satuan Kerja)</label>
+              <input type="text" id="instansiName" placeholder="Contoh: MTs NEGERI LANDAK" class="w-full px-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500">
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Periode Pelaporan (Opsional Kustom)</label>
+              <input type="text" id="docPeriode" placeholder="Kosongkan untuk otomatis (misal: 1 - 28 Februari 2022)" class="w-full px-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500">
+            </div>
+
+            <div class="border-t pt-3 mt-3">
+              <span class="text-xs font-bold text-emerald-700 uppercase tracking-wider block mb-2">Yang Membuat Laporan (Pegawai)</span>
+              <div class="space-y-2">
+                <input type="text" id="makerName" placeholder="Nama & Gelar (mis: Julfiza, S.T)" class="w-full px-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500">
+                <input type="text" id="makerNip" placeholder="NIP (Kosongkan bila tidak ada)" class="w-full px-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500">
+                <input type="text" id="makerJabatan" placeholder="Jabatan" class="w-full px-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500">
+              </div>
+            </div>
+
+            <div class="border-t pt-3 mt-3">
+              <span class="text-xs font-bold text-emerald-700 uppercase tracking-wider block mb-2">Atasan Langsung / Kepala Madrasah</span>
+              <div class="space-y-2">
+                <input type="text" id="headName" placeholder="Nama Atasan (mis: Dwi Karsono, M. Pd.)" class="w-full px-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500">
+                <input type="text" id="headNip" placeholder="NIP Atasan (Kosongkan bila tidak ada)" class="w-full px-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500">
+              </div>
+            </div>
+
+            <div class="border-t pt-3 mt-3">
+              <label class="block text-xs font-medium text-slate-600 mb-1">Tempat & Tanggal Pengesahan TTD</label>
+              <input type="text" id="docLocation" oninput="syncBerlakuFromSignDate(this.value)" placeholder="Contoh: Ngabang, 1 Maret 2022" class="w-full px-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500">
+              <p class="text-[11px] text-slate-400 mt-1">Penanggalan yang diberikan ke atasan saat pelaporan.</p>
+            </div>
+
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-xs font-medium text-slate-600">Teks Catatan Tanggal Berlaku</label>
+                <button type="button" onclick="autoSetBerlakuDate()" class="text-[11px] text-emerald-600 hover:text-emerald-700 font-semibold underline">
+                  Sesuaikan dg Tgl TTD
+                </button>
+              </div>
+              <input type="text" id="docBerlakuTgl" placeholder="Contoh: 1 Maret 2022" class="w-full px-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500">
+            </div>
+
+            <button type="button" onclick="saveProfiles()" class="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl font-medium text-sm transition flex items-center justify-center gap-2 shadow-sm">
+              <i class="fa-solid fa-floppy-disk"></i> Simpan Pengaturan Profil
+            </button>
+          </div>
+        </div>
+
+        <!-- Filter Periode Bulan / Tahun -->
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+          <h2 class="text-base font-semibold text-slate-800 mb-3 flex items-center gap-2">
+            <i class="fa-solid fa-filter text-emerald-600"></i> Pilih Periode Cetak
+          </h2>
+          <div class="grid grid-cols-2 gap-3 mb-4">
+            <div>
+              <label class="block text-xs text-slate-500 mb-1">Bulan</label>
+              <select id="filterMonth" onchange="renderLkhDoc()" class="w-full px-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500">
+                <option value="1">Januari</option>
+                <option value="2">Februari</option>
+                <option value="3">Maret</option>
+                <option value="4">April</option>
+                <option value="5">Mei</option>
+                <option value="6">Juni</option>
+                <option value="7">Juli</option>
+                <option value="8">Agustus</option>
+                <option value="9">September</option>
+                <option value="10">Oktober</option>
+                <option value="11">November</option>
+                <option value="12">Desember</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs text-slate-500 mb-1">Tahun (2020 s.d. Mendatang)</label>
+              <select id="filterYear" onchange="renderLkhDoc()" class="w-full px-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500">
+                <!-- Diisi dinamis via JS -->
+              </select>
+            </div>
+          </div>
+
+          <!-- Tombol Download -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button onclick="exportToWord()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 px-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 shadow-sm transition">
+              <i class="fa-solid fa-file-word text-base"></i> Download Word (.docx)
+            </button>
+            <button onclick="exportToPdf()" class="w-full bg-rose-600 hover:bg-rose-700 text-white py-2.5 px-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 shadow-sm transition">
+              <i class="fa-solid fa-file-pdf text-base"></i> Download PDF
+            </button>
+          </div>
+          <button onclick="window.print()" class="w-full mt-2 bg-slate-700 hover:bg-slate-800 text-white py-2 px-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 transition">
+            <i class="fa-solid fa-print"></i> Langsung Print LKH
+          </button>
+
+          <!-- Indikator Keamanan Data -->
+          <div class="mt-4 pt-3 border-t text-[11px] text-slate-500 flex items-center justify-between">
+            <span class="flex items-center gap-1.5 text-emerald-700 font-medium">
+              <i class="fa-solid fa-database"></i> Tersimpan Otomatis di Browser
+            </span>
+            <button onclick="toggleBackupModal()" class="text-blue-600 hover:underline font-semibold">
+              Kelola Backup
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Preview Dokumen LKH Sisi Kanan -->
+      <div class="lg:col-span-8">
+        
+        <!-- Banner Info Preview -->
+        <div class="mb-4 bg-amber-50 border border-amber-200 text-amber-900 px-4 py-2.5 rounded-xl text-xs flex items-center justify-between no-print">
+          <span class="flex items-center gap-2">
+            <i class="fa-solid fa-circle-info text-amber-600"></i>
+            Data harian yang Anda simpan akan langsung terkumpul di tabel ini dan tidak akan hilang saat halaman ditutup.
+          </span>
+          <span id="dataCountBadge" class="bg-amber-200 text-amber-800 px-2 py-0.5 rounded-md font-bold">0 Data</span>
+        </div>
+
+        <!-- Wadah Dokumen Kertas LKH (Yang Dicetak / Dikonversi) -->
+        <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-md border border-slate-200 text-black mx-auto" id="printArea" style="max-width: 820px; font-family: Arial, Helvetica, sans-serif;">
+          
+          <!-- Header Dokumen Sesuai Format Word & Kedinasan -->
+          <div class="text-center mb-3">
+            <h2 class="text-base sm:text-lg font-bold uppercase tracking-wider mb-2">LEMBAR KINERJA HARIAN</h2>
+          </div>
+
+          <!-- Rincian Identitas Pegawai di Dokumen -->
+          <div class="mb-3 text-xs sm:text-sm font-normal">
+            <table class="w-full" style="border: none; border-collapse: collapse; line-height: 1.25;">
+              <tr style="border: none;">
+                <td style="width: 170px; padding: 1.5px 0; border: none; font-weight: bold;">NAMA</td>
+                <td style="width: 15px; padding: 1.5px 0; border: none;">:</td>
+                <td style="padding: 1.5px 0; border: none;" id="docViewMakerName">-</td>
+              </tr>
+              <tr style="border: none;">
+                <td style="padding: 1.5px 0; border: none; font-weight: bold;">NIP</td>
+                <td style="padding: 1.5px 0; border: none;">:</td>
+                <td style="padding: 1.5px 0; border: none;" id="docViewMakerNip">-</td>
+              </tr>
+              <tr style="border: none;">
+                <td style="padding: 1.5px 0; border: none; font-weight: bold;">JABATAN</td>
+                <td style="padding: 1.5px 0; border: none;">:</td>
+                <td style="padding: 1.5px 0; border: none;" id="docViewMakerJabatan">-</td>
+              </tr>
+              <tr style="border: none;">
+                <td style="padding: 1.5px 0; border: none; font-weight: bold;">SATKER</td>
+                <td style="padding: 1.5px 0; border: none;">:</td>
+                <td style="padding: 1.5px 0; border: none; font-weight: bold;" id="docInstansiTitle">MTs NEGERI LANDAK</td>
+              </tr>
+              <tr style="border: none;">
+                <td style="padding: 1.5px 0; border: none; font-weight: bold;">ATASAN LANGSUNG</td>
+                <td style="padding: 1.5px 0; border: none;">:</td>
+                <td style="padding: 1.5px 0; border: none;" id="docViewHeadName">Dwi Karsono, M. Pd.</td>
+              </tr>
+              <tr style="border: none;">
+                <td style="padding: 1.5px 0; border: none; font-weight: bold;">PERIODE PELAPORAN</td>
+                <td style="padding: 1.5px 0; border: none;">:</td>
+                <td style="padding: 1.5px 0; border: none;" id="docPeriodeTitle">-</td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Tabel Utama Lembar Kinerja Harian -->
+          <div class="overflow-x-auto">
+            <table class="lkh-table w-full border-collapse border border-black text-xs sm:text-sm text-left">
+              <thead>
+                <tr style="background-color: #f2f2f2;" class="text-center font-bold">
+                  <th style="width: 38px; text-align: center;">No</th>
+                  <th style="width: 175px; text-align: center;">Hari/Tanggal</th>
+                  <th style="width: 90px; text-align: center;">Jam Mulai</th>
+                  <th style="width: 90px; text-align: center;">Jam Selesai</th>
+                  <th style="text-align: center;">Detail Pekerjaan</th>
+                  <th class="no-print" style="width: 65px; text-align: center;">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="lkhTableBody">
+                <!-- Baris Data Dimuat Dinamis -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Blok Kaki Dokumen: Catatan & Tanda Tangan Utuh Anti-Terpotong -->
+          <div class="footer-doc-block avoid-break mt-3.5 text-xs sm:text-sm" style="page-break-inside: avoid !important; break-inside: avoid !important;">
+            
+            <!-- Catatan Kaki Sesuai Format -->
+            <div class="notes-wrapper mb-3" style="line-height: 1.35;">
+              <p style="font-weight: bold; margin-bottom: 2px;">Catatan :</p>
+              <ol style="margin-left: 20px; padding: 0; list-style-type: decimal;">
+                <li>Laporan ini berisi harian, dan dilaporkan secara mingguan dengan ditandatangani oleh Atasan Langsung/Kepala Madrasah.</li>
+                <li>Laporan ini berlaku sejak tanggal <span id="docBerlakuSpan" style="font-weight: 500;">1 Maret 2022</span></li>
+              </ol>
+            </div>
+
+            <!-- Tanda Tangan Dua Kolom Sejajar Rapi Menggunakan Tabel -->
+            <table class="sign-table w-full" style="width: 100%; border: none; border-collapse: collapse; text-align: center; margin-top: 12px;">
+              <tr style="border: none;">
+                <!-- Kolom Kiri: Atasan Langsung -->
+                <td style="width: 50%; border: none; vertical-align: top; text-align: center; padding: 0 10px;">
+                  <!-- Spacer baris atas agar teks 'Mengetahui/Menyetujui' rata horisontal dengan 'Yang Membuat Laporan' -->
+                  <div style="height: 20px; line-height: 20px;">&nbsp;</div>
+                  <p style="font-weight: 600; margin-bottom: 65px;">Mengetahui/Menyetujui,</p>
+                  <p style="font-weight: bold;" id="docSignHeadName">(DWI KARSONO, M. Pd.)</p>
+                  <p style="font-size: 11px; margin-top: 2px;" id="docSignHeadNip"></p>
+                </td>
+                
+                <!-- Kolom Kanan: Yang Membuat Laporan (Lurus di Bawah Penanggalan Ngabang) -->
+                <td style="width: 50%; border: none; vertical-align: top; text-align: center; padding: 0 10px;">
+                  <div style="height: 20px; line-height: 20px; font-weight: normal;" id="docSignDate">Ngabang, 1 Maret 2022</div>
+                  <p style="font-weight: 600; margin-bottom: 65px;">Yang Membuat Laporan,</p>
+                  <p style="font-weight: bold; text-transform: uppercase;" id="docSignMakerName">(JULFIZA, S.T)</p>
+                  <p style="font-size: 11px; margin-top: 2px;" id="docSignMakerNip"></p>
+                </td>
+              </tr>
+            </table>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Modal Backup & Restore Data (Menjaga Data Bertahun-tahun) -->
+  <div id="backupModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
+      <div class="flex justify-between items-center pb-3 border-b">
+        <h3 class="font-bold text-base text-slate-800 flex items-center gap-2">
+          <i class="fa-solid fa-cloud-arrow-down text-emerald-600"></i> Cadangkan & Pulihkan Arsip Data LKH
+        </h3>
+        <button onclick="toggleBackupModal()" class="text-slate-400 hover:text-slate-600">
+          <i class="fa-solid fa-xmark text-xl"></i>
+        </button>
+      </div>
+
+      <div class="mt-4 text-xs text-slate-600 space-y-3 leading-relaxed">
+        <div class="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 leading-normal">
+          <p class="font-semibold mb-1"><i class="fa-solid fa-circle-info"></i> Data Tersimpan Permanen di Perangkat Anda:</p>
+          Setiap entri yang disimpan otomatis tersimpan di peramban (browser) ini. Jika Anda berencana mengganti komputer, laptop, atau HP, unduh berkas arsip (.json) dan unggah kembali di perangkat baru agar seluruh rekaman Anda tetap tersambung utuh.
+        </div>
+
+        <div class="border rounded-xl p-4 bg-slate-50 space-y-2">
+          <h4 class="font-bold text-slate-800 text-sm">1. Cadangkan / Simpan Semua Data</h4>
+          <p class="text-slate-500">Unduh seluruh riwayat data bulanan dan profil Anda menjadi 1 file arsip kecil:</p>
+          <button onclick="downloadBackupFile()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 px-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition shadow-sm">
+            <i class="fa-solid fa-download"></i> Unduh File Cadangan Data (.json)
+          </button>
+        </div>
+
+        <div class="border rounded-xl p-4 bg-slate-50 space-y-2">
+          <h4 class="font-bold text-slate-800 text-sm">2. Pulihkan / Pindahkan ke Perangkat Lain</h4>
+          <p class="text-slate-500">Buka kembali data masa lalu dari file cadangan yang pernah Anda unduh:</p>
+          <input type="file" id="restoreFileInput" accept=".json" class="hidden" onchange="handleRestoreFile(event)">
+          <button onclick="document.getElementById('restoreFileInput').click()" class="w-full bg-slate-700 hover:bg-slate-800 text-white py-2.5 px-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition shadow-sm">
+            <i class="fa-solid fa-upload"></i> Unggah / Pulihkan File Cadangan
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-5 flex justify-end">
+        <button onclick="toggleBackupModal()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-xl text-xs font-semibold transition">
+          Tutup
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast Container -->
+  <div id="toast" class="fixed bottom-5 right-5 bg-slate-900 text-white px-4 py-3 rounded-xl text-sm shadow-xl flex items-center gap-2 transform translate-y-20 opacity-0 transition-all duration-300 z-50">
+    <i class="fa-solid fa-check text-emerald-400"></i>
+    <span id="toastMsg">Pesan Berhasil</span>
+  </div>
+
+  <!-- Watermark / Created by Julfiza di Pojok Kanan Bawah -->
+  <aside aria-label="Informasi Pembuat" class="no-print fixed bottom-3 right-3 z-40 select-none pointer-events-auto">
+    <div class="flex items-center gap-2 bg-slate-900/85 hover:bg-slate-900 text-slate-200 hover:text-white px-3 py-1.5 rounded-full shadow-lg backdrop-blur-md border border-slate-700/60 text-[11px] font-medium tracking-wide transition-all duration-200 group">
+      <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 group-hover:bg-emerald-500 group-hover:text-slate-950 transition-colors">
+        <i class="fa-solid fa-shield text-[9px]"></i>
+      </span>
+      <span>Created by <strong class="text-emerald-400 font-semibold tracking-normal">Julfiza</strong></span>
+    </div>
+  </aside>
+
+  <!-- Logika Aplikasi (JavaScript) -->
+  <script>
+    // Kunci Penyimpanan Data Permanen di Browser
+    const STORAGE_KEY_ITEMS = "lkh_madrasah_entries_v3";
+    const STORAGE_KEY_PROFILE = "lkh_madrasah_profile_v3";
+
+    let entries = [];
+    let editId = null;
+
+    // Profil default awal
+    let profile = {
+      instansi: "MTs NEGERI LANDAK",
+      makerName: "Julfiza, S.T",
+      makerNip: "",
+      makerJabatan: "Guru",
+      headName: "Dwi Karsono, M. Pd.",
+      headNip: "",
+      periodeText: "",
+      signDate: "Ngabang, 1 Maret 2022",
+      berlakuTgl: "1 Maret 2022"
+    };
+
+    const INDO_DAYS = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const INDO_MONTHS = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+
+    // Inisialisasi Aplikasi Saat Memuat Halaman
+    window.onload = function() {
+      initYearSelector();
+      loadStoredData();
+      setupDateInputListener();
+      setupActivityTextareaAutoNumber();
+      setDefaultDates();
+      renderProfileForm();
+      renderLkhDoc();
+    };
+
+    // Tampilkan pesan notifikasi toast
+    function showToast(msg) {
+      const toast = document.getElementById("toast");
+      const toastMsg = document.getElementById("toastMsg");
+      if(!toast || !toastMsg) return;
+      toastMsg.innerText = msg;
+      toast.classList.remove("translate-y-20", "opacity-0");
+      setTimeout(() => {
+        toast.classList.add("translate-y-20", "opacity-0");
+      }, 3000);
+    }
+
+    // Inisialisasi dropdown tahun
+    function initYearSelector() {
+      const yearSelect = document.getElementById('filterYear');
+      if(!yearSelect) return;
+      const currentYear = new Date().getFullYear();
+      yearSelect.innerHTML = '';
+      
+      const startYear = 2020;
+      const endYear = Math.max(currentYear + 4, 2030);
+
+      for(let y = startYear; y <= endYear; y++) {
+        const opt = document.createElement('option');
+        opt.value = y;
+        opt.innerText = y;
+        if(y === currentYear) opt.selected = true;
+        yearSelect.appendChild(opt);
+      }
+    }
+
+    // Set tanggal default untuk form input
+    function setDefaultDates() {
+      const now = new Date();
+      const dayOfWeek = now.getDay();
+      if (dayOfWeek === 0) { // Minggu -> geser ke Jumat
+        now.setDate(now.getDate() - 2);
+      } else if (dayOfWeek === 6) { // Sabtu -> geser ke Jumat
+        now.setDate(now.getDate() - 1);
+      }
+
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      
+      const dateStr = `${yyyy}-${mm}-${dd}`;
+      const actDateEl = document.getElementById('actDate');
+      if(actDateEl) {
+        actDateEl.value = dateStr;
+        updateDayFromDate(dateStr);
+      }
+
+      const fMonth = document.getElementById('filterMonth');
+      const fYear = document.getElementById('filterYear');
+      if(fMonth) fMonth.value = now.getMonth() + 1;
+      if(fYear) fYear.value = yyyy;
+    }
+
+    // Listener auto-detect hari dan jam kerja standar Kemenag / Madrasah
+    function setupDateInputListener() {
+      const actDateInput = document.getElementById('actDate');
+      if (!actDateInput) return;
+
+      actDateInput.addEventListener('change', function() {
+        updateDayFromDate(this.value);
+        autoFocusMonthFilter(this.value);
+      });
+      actDateInput.addEventListener('input', function() {
+        updateDayFromDate(this.value);
+        autoFocusMonthFilter(this.value);
+      });
+    }
+
+    // Otomatis sinkronkan filter bulan & tahun saat tanggal dipilih
+    function autoFocusMonthFilter(dateStr) {
+      if(!dateStr) return;
+      const parts = dateStr.split('-');
+      if(parts.length === 3) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        const fMonth = document.getElementById('filterMonth');
+        const fYear = document.getElementById('filterYear');
+        if(fMonth && fYear) {
+          fMonth.value = m;
+          fYear.value = y;
+          renderLkhDoc();
+        }
+      }
+    }
+
+    // Penomoran otomatis (1., 2., dst) dan huruf kapital otomatis untuk detail pekerjaan
+    function setupActivityTextareaAutoNumber() {
+      const textarea = document.getElementById('actDescription');
+      if (!textarea) return;
+
+      textarea.addEventListener('focus', function() {
+        if (!this.value.trim() && !this.disabled) {
+          this.value = "1. ";
+        }
+      });
+
+      textarea.addEventListener('input', function() {
+        const cursor = this.selectionStart;
+        const val = this.value;
+        if (!val) return;
+
+        if (!/^\s*\d+\.\s*/.test(val) && val.trim().length > 0) {
+          const capitalized = val.charAt(0).toUpperCase() + val.slice(1);
+          this.value = "1. " + capitalized;
+          return;
+        }
+
+        const lines = val.split('\n');
+        let changed = false;
+        const updatedLines = lines.map(line => {
+          const match = line.match(/^(\s*\d+\.\s*)([a-z])(.*)$/);
+          if (match) {
+            changed = true;
+            return match[1] + match[2].toUpperCase() + match[3];
+          }
+          return line;
+        });
+
+        if (changed) {
+          this.value = updatedLines.join('\n');
+          this.setSelectionRange(cursor, cursor);
+        }
+      });
+
+      textarea.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const start = this.selectionStart;
+          const end = this.selectionEnd;
+          const textBefore = this.value.substring(0, start);
+          const textAfter = this.value.substring(end);
+          
+          const linesBefore = textBefore.split('\n');
+          const currentLine = linesBefore[linesBefore.length - 1];
+
+          const emptyNumMatch = currentLine.match(/^\s*(\d+)\.\s*$/);
+          if (emptyNumMatch) {
+            linesBefore[linesBefore.length - 1] = '';
+            this.value = linesBefore.join('\n') + textAfter;
+            const newCursor = linesBefore.join('\n').length;
+            this.setSelectionRange(newCursor, newCursor);
+            return;
+          }
+
+          const numMatch = currentLine.match(/^\s*(\d+)\.\s*/);
+          let nextNumber = 1;
+          if (numMatch) {
+            nextNumber = parseInt(numMatch[1], 10) + 1;
+          } else {
+            const totalNumbered = (this.value.match(/^\s*\d+\.\s*/gm) || []).length;
+            nextNumber = totalNumbered + 1;
+          }
+
+          const newLinePrefix = `\n${nextNumber}. `;
+          this.value = textBefore + newLinePrefix + textAfter;
+          const newPos = start + newLinePrefix.length;
+          this.setSelectionRange(newPos, newPos);
+        } else if (e.key === 'Backspace') {
+          const start = this.selectionStart;
+          const textBefore = this.value.substring(0, start);
+          const linesBefore = textBefore.split('\n');
+          const currentLine = linesBefore[linesBefore.length - 1];
+
+          if (/^\s*\d+\.\s*$/.test(currentLine)) {
+            e.preventDefault();
+            const textAfter = this.value.substring(start);
+            linesBefore.pop();
+            this.value = (linesBefore.length > 0 ? linesBefore.join('\n') : '') + textAfter;
+            const newPos = linesBefore.length > 0 ? linesBefore.join('\n').length : 0;
+            this.setSelectionRange(newPos, newPos);
+          }
+        }
+      });
+    }
+
+    function isWeekend(dateStr) {
+      if(!dateStr) return false;
+      const parts = dateStr.split('-');
+      if(parts.length !== 3) return false;
+      const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      const dayIndex = d.getDay();
+      return (dayIndex === 0 || dayIndex === 6);
+    }
+
+    function getStandardEndTime(dateStr) {
+      if(!dateStr) return "15.30 WIB";
+      const parts = dateStr.split('-');
+      if(parts.length !== 3) return "15.30 WIB";
+      const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      const dayIndex = d.getDay();
+      return (dayIndex === 5) ? "16.00 WIB" : "15.30 WIB";
+    }
+
+    function updateDayFromDate(dateStr) {
+      if(!dateStr) return;
+      const parts = dateStr.split('-');
+      if(parts.length !== 3) return;
+      const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      const dayIndex = d.getDay();
+      const dayName = INDO_DAYS[dayIndex];
+      const indoFormatted = `${dayName}, ${formatIndoDate(dateStr)}`;
+      
+      const actDayEl = document.getElementById('actDay');
+      if (actDayEl) actDayEl.value = indoFormatted;
+
+      const weekendWarning = document.getElementById('weekendAlert');
+      const submitBtn = document.getElementById('submitBtn');
+      const actStart = document.getElementById('actStart');
+      const actEnd = document.getElementById('actEnd');
+      const actDesc = document.getElementById('actDescription');
+
+      if (dayIndex === 0 || dayIndex === 6) {
+        if (weekendWarning) weekendWarning.classList.remove('hidden');
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+        if (actStart) actStart.value = "-";
+        if (actEnd) actEnd.value = "LIBUR";
+        if (actDesc) {
+          actDesc.disabled = true;
+          actDesc.placeholder = "Hari Sabtu & Minggu (Ahad) libur / tidak bekerja.";
+        }
+      } else {
+        if (weekendWarning) weekendWarning.classList.add('hidden');
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+        if (actDesc) {
+          actDesc.disabled = false;
+          actDesc.placeholder = "1. Mulai tulis rincian pekerjaan di sini...";
+        }
+        if (actStart) actStart.value = "07.00 WIB";
+        if (actEnd) actEnd.value = (dayIndex === 5) ? "16.00 WIB" : "15.30 WIB";
+      }
+    }
+
+    function formatHeadSignatureName(name) {
+      if(!name) return "( .................................... )";
+      let clean = name.trim();
+      clean = clean.replace(/,\s*M\.?\s*P[dD]\.?/gi, ", M. Pd.");
+      
+      if(clean.toLowerCase().includes(", m. pd.")) {
+        const parts = clean.split(/,\s*M\.\s*Pd\./i);
+        return `(${parts[0].trim().toUpperCase()}, M. Pd.)`;
+      }
+      return `(${clean.toUpperCase()})`;
+    }
+
+    // Memuat data tersimpan dari browser (Mendukung data versi sebelumnya agar tidak pernah hilang)
+    function loadStoredData() {
+      const savedItems = localStorage.getItem(STORAGE_KEY_ITEMS) || localStorage.getItem("lkh_madrasah_entries_v2");
+      if(savedItems) {
+        try {
+          entries = JSON.parse(savedItems);
+          if(!Array.isArray(entries)) entries = [];
+        } catch(e) {
+          entries = [];
+        }
+      } else {
+        entries = [];
+      }
+
+      const savedProfile = localStorage.getItem(STORAGE_KEY_PROFILE) || localStorage.getItem("lkh_madrasah_profile_v2");
+      if(savedProfile) {
+        try {
+          profile = { ...profile, ...JSON.parse(savedProfile) };
+          if (profile.headName) {
+            profile.headName = profile.headName.replace(/,\s*M\.?\s*P[dD]\.?/gi, ", M. Pd.");
+          }
+        } catch(e) {}
+      }
+    }
+
+    function saveEntriesToStorage() {
+      // Simpan ke kunci utama dan kunci fallback cadangan browser
+      localStorage.setItem(STORAGE_KEY_ITEMS, JSON.stringify(entries));
+      localStorage.setItem("lkh_madrasah_entries_v2", JSON.stringify(entries));
+    }
+
+    function saveProfiles() {
+      const setVal = (id, prop) => {
+        const el = document.getElementById(id);
+        if (el) profile[prop] = el.value;
+      };
+
+      setVal('instansiName', 'instansi');
+      setVal('docPeriode', 'periodeText');
+      setVal('makerName', 'makerName');
+      setVal('makerNip', 'makerNip');
+      setVal('makerJabatan', 'makerJabatan');
+      setVal('headName', 'headName');
+      setVal('headNip', 'headNip');
+      setVal('docLocation', 'signDate');
+      setVal('docBerlakuTgl', 'berlakuTgl');
+
+      localStorage.setItem(STORAGE_KEY_PROFILE, JSON.stringify(profile));
+      localStorage.setItem("lkh_madrasah_profile_v2", JSON.stringify(profile));
+      renderLkhDoc();
+      showToast("Data profil & penanggalan berhasil disimpan permanen!");
+    }
+
+    function renderProfileForm() {
+      const setElValue = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.value = val || '';
+      };
+
+      setElValue('instansiName', profile.instansi);
+      setElValue('docPeriode', profile.periodeText);
+      setElValue('makerName', profile.makerName);
+      setElValue('makerNip', profile.makerNip);
+      setElValue('makerJabatan', profile.makerJabatan);
+      setElValue('headName', profile.headName);
+      setElValue('headNip', profile.headNip);
+      setElValue('docLocation', profile.signDate);
+      setElValue('docBerlakuTgl', profile.berlakuTgl);
+    }
+
+    function switchTab(tab) {
+      const sInput = document.getElementById('sectionInput');
+      const sProfile = document.getElementById('sectionProfile');
+      const tabInputBtn = document.getElementById('tabInputBtn');
+      const tabProfileBtn = document.getElementById('tabProfileBtn');
+
+      if(tab === 'input') {
+        sInput.classList.remove('hidden');
+        sProfile.classList.add('hidden');
+        tabInputBtn.className = "flex-1 py-2 font-medium rounded-xl text-center bg-emerald-600 text-white transition";
+        tabProfileBtn.className = "flex-1 py-2 font-medium rounded-xl text-center text-slate-600 hover:text-emerald-700 transition";
+      } else {
+        sInput.classList.add('hidden');
+        sProfile.classList.remove('hidden');
+        tabProfileBtn.className = "flex-1 py-2 font-medium rounded-xl text-center bg-emerald-600 text-white transition";
+        tabInputBtn.className = "flex-1 py-2 font-medium rounded-xl text-center text-slate-600 hover:text-emerald-700 transition";
+      }
+    }
+
+    // Tambah / Ubah Kegiatan
+    function handleSaveActivity(e) {
+      e.preventDefault();
+      const dateVal = document.getElementById('actDate').value;
+
+      if (isWeekend(dateVal)) {
+        showToast("Hari Sabtu dan Minggu libur. Tidak dapat disimpan!");
+        return;
+      }
+
+      const startVal = document.getElementById('actStart').value.trim() || "07.00 WIB";
+      const endVal = getStandardEndTime(dateVal);
+      let descVal = document.getElementById('actDescription').value.trim();
+
+      if (descVal && !/^\s*\d+\.\s*/.test(descVal)) {
+        descVal = "1. " + descVal.charAt(0).toUpperCase() + descVal.slice(1);
+      }
+
+      if(!dateVal || !descVal) return;
+
+      if(editId) {
+        const idx = entries.findIndex(item => item.id === editId);
+        if(idx !== -1) {
+          entries[idx].date = dateVal;
+          entries[idx].startTime = startVal;
+          entries[idx].endTime = endVal;
+          entries[idx].description = descVal;
+          showToast("Pekerjaan berhasil diperbarui!");
+        }
+        resetForm();
+      } else {
+        const newItem = {
+          id: Date.now().toString(),
+          date: dateVal,
+          startTime: startVal,
+          endTime: endVal,
+          description: descVal
+        };
+        entries.push(newItem);
+        showToast("Pekerjaan berhasil disimpan ke memori!");
+        document.getElementById('actDescription').value = '';
+      }
+
+      // Simpan langsung ke memori lokal
+      saveEntriesToStorage();
+      renderLkhDoc();
+    }
+
+    function editItem(id) {
+      const item = entries.find(x => x.id === id);
+      if(!item) return;
+
+      editId = id;
+      document.getElementById('actDate').value = item.date;
+      updateDayFromDate(item.date);
+      document.getElementById('actStart').value = item.startTime || "07.00 WIB";
+      document.getElementById('actEnd').value = getStandardEndTime(item.date);
+      document.getElementById('actDescription').value = item.description;
+
+      document.getElementById('submitBtn').innerHTML = `<i class="fa-solid fa-check"></i> Perbarui Kegiatan`;
+      document.getElementById('cancelEditBtn').classList.remove('hidden');
+      
+      switchTab('input');
+    }
+
+    function resetForm() {
+      editId = null;
+      document.getElementById('submitBtn').innerHTML = `<i class="fa-solid fa-save"></i> Simpan Kegiatan`;
+      document.getElementById('cancelEditBtn').classList.add('hidden');
+      document.getElementById('actDescription').value = '';
+    }
+
+    function deleteItem(id) {
+      if(!window.confirm("Hapus catatan pekerjaan ini?")) return;
+      entries = entries.filter(x => x.id !== id);
+      saveEntriesToStorage();
+      renderLkhDoc();
+      showToast("Catatan berhasil dihapus.");
+    }
+
+    function formatIndoDate(dateStr) {
+      if(!dateStr) return "-";
+      const parts = dateStr.split('-');
+      if(parts.length !== 3) return dateStr;
+      const y = parts[0];
+      const m = parseInt(parts[1], 10) - 1;
+      const d = parseInt(parts[2], 10);
+      return `${d} ${INDO_MONTHS[m]} ${y}`;
+    }
+
+    function extractDateOnly(locationDateStr) {
+      if (!locationDateStr) return "";
+      if (locationDateStr.includes(',')) {
+        return locationDateStr.split(',')[1].trim();
+      }
+      return locationDateStr.trim();
+    }
+
+    function syncBerlakuFromSignDate(signVal) {
+      const extracted = extractDateOnly(signVal);
+      if (extracted) {
+        document.getElementById('docBerlakuTgl').value = extracted;
+      }
+    }
+
+    function autoSetBerlakuDate() {
+      const signVal = document.getElementById('docLocation').value;
+      const extracted = extractDateOnly(signVal);
+      if (extracted) {
+        document.getElementById('docBerlakuTgl').value = extracted;
+        showToast("Tanggal berlaku disesuaikan dengan tanggal penyerahan TTD.");
+      }
+    }
+
+    function getHariTanggalText(dateStr) {
+      if(!dateStr) return "-";
+      const d = new Date(dateStr + "T00:00:00");
+      const dayName = INDO_DAYS[d.getDay()];
+      return `${dayName}, ${formatIndoDate(dateStr)}`;
+    }
+
+    // Render Dokumen LKH Sesuai Template Unggahan
+    function renderLkhDoc() {
+      const selMonth = parseInt(document.getElementById('filterMonth').value, 10);
+      const selYear = parseInt(document.getElementById('filterYear').value, 10);
+      const monthName = INDO_MONTHS[selMonth - 1];
+
+      document.getElementById('docInstansiTitle').innerText = profile.instansi || "MTs NEGERI LANDAK";
+      document.getElementById('docViewMakerName').innerText = profile.makerName || "-";
+      document.getElementById('docViewMakerNip').innerText = profile.makerNip || "-";
+      document.getElementById('docViewMakerJabatan').innerText = profile.makerJabatan || "-";
+      document.getElementById('docViewHeadName').innerText = profile.headName || "-";
+      
+      const lastDayOfMonth = new Date(selYear, selMonth, 0).getDate();
+      const defaultPeriode = `1 - ${lastDayOfMonth} ${monthName} ${selYear}`;
+      document.getElementById('docPeriodeTitle').innerText = profile.periodeText || defaultPeriode;
+
+      const defaultSignDate = `Ngabang, 1 ${INDO_MONTHS[(selMonth % 12)]} ${selMonth === 12 ? selYear + 1 : selYear}`;
+      const effectiveSignDate = profile.signDate || defaultSignDate;
+      document.getElementById('docSignDate').innerText = effectiveSignDate;
+
+      const effectiveBerlaku = profile.berlakuTgl || extractDateOnly(effectiveSignDate) || `01 ${monthName} ${selYear}`;
+      document.getElementById('docBerlakuSpan').innerText = effectiveBerlaku;
+
+      document.getElementById('docSignHeadName').innerText = formatHeadSignatureName(profile.headName || "DWI KARSONO, M. Pd.");
+      document.getElementById('docSignHeadNip').innerText = profile.headNip ? `NIP. ${profile.headNip}` : "";
+      
+      const makerClean = (profile.makerName || "JULFIZA, S.T").trim().toUpperCase();
+      document.getElementById('docSignMakerName').innerText = `(${makerClean})`;
+      document.getElementById('docSignMakerNip').innerText = profile.makerNip ? `NIP. ${profile.makerNip}` : "";
+
+      // Filter data sesuai bulan & tahun terpilih
+      const filtered = entries.filter(item => {
+        if(!item.date) return false;
+        const [y, m] = item.date.split('-').map(Number);
+        return y === selYear && m === selMonth;
+      }).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      document.getElementById('dataCountBadge').innerText = `${filtered.length} Baris Kegiatan`;
+
+      const tbody = document.getElementById('lkhTableBody');
+      tbody.innerHTML = '';
+
+      if(filtered.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6" class="text-center py-8 text-slate-400 italic">
+              Belum ada kegiatan yang dicatat pada bulan ${monthName} ${selYear}.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      filtered.forEach((row, index) => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 transition";
+        tr.style.pageBreakInside = "avoid";
+        tr.style.breakInside = "avoid";
+        const autoEndTime = row.endTime || getStandardEndTime(row.date);
+        tr.innerHTML = `
+          <td class="text-center font-medium">${index + 1}</td>
+          <td class="font-medium whitespace-nowrap">${getHariTanggalText(row.date)}</td>
+          <td class="text-center whitespace-nowrap">${row.startTime || "07.00 WIB"}</td>
+          <td class="text-center whitespace-nowrap">${autoEndTime}</td>
+          <td class="whitespace-pre-wrap">${escapeHtml(row.description)}</td>
+          <td class="text-center no-print">
+            <div class="flex items-center justify-center gap-1">
+              <button onclick="editItem('${row.id}')" title="Edit" class="p-1.5 text-blue-600 hover:bg-blue-50 rounded">
+                <i class="fa-solid fa-pen-to-square text-xs"></i>
+              </button>
+              <button onclick="deleteItem('${row.id}')" title="Hapus" class="p-1.5 text-rose-600 hover:bg-rose-50 rounded">
+                <i class="fa-solid fa-trash text-xs"></i>
+              </button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function escapeHtml(text) {
+      if(!text) return '';
+      return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // ==========================================
+    // EKSPOR KE PDF (via html2pdf.js) - Rapi & Anti-Terpotong
+    // ==========================================
+    function exportToPdf() {
+      const selMonth = parseInt(document.getElementById('filterMonth').value, 10);
+      const selYear = parseInt(document.getElementById('filterYear').value, 10);
+      const monthName = INDO_MONTHS[selMonth - 1];
+
+      const printArea = document.getElementById('printArea');
+      if(!printArea) return;
+
+      // Sembunyikan elemen no-print
+      const noPrintEls = printArea.querySelectorAll('.no-print');
+      noPrintEls.forEach(el => el.style.display = 'none');
+
+      // Terapkan styling mode PDF murni (dimensi A4 pas 186mm tanpa bayangan/border kartu)
+      printArea.classList.add('pdf-render-mode');
+
+      const opt = {
+        margin: [10, 12, 10, 12], // mm: [atas, kiri, bawah, kanan]
+        filename: `Lembar_Kinerja_Harian_${monthName}_${selYear}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { 
+          scale: 2, 
+          useCORS: true, 
+          scrollY: 0, 
+          logging: false,
+          letterRendering: true,
+          backgroundColor: '#ffffff'
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { 
+          mode: ['css', 'legacy'], 
+          avoid: ['tr', '.avoid-break', '.footer-doc-block', '.sign-table', '.notes-wrapper'] 
+        }
+      };
+
+      showToast("Sedang menyusun PDF tanpa terpotong...");
+
+      html2pdf().set(opt).from(printArea).save().then(() => {
+        printArea.classList.remove('pdf-render-mode');
+        noPrintEls.forEach(el => el.style.display = '');
+        showToast("File PDF berhasil diunduh dengan rapi!");
+      }).catch(err => {
+        printArea.classList.remove('pdf-render-mode');
+        noPrintEls.forEach(el => el.style.display = '');
+        console.error(err);
+        showToast("Gagal mengunduh PDF. Silakan gunakan tombol Print.");
+      });
+    }
+
+    function toggleBackupModal() {
+      const modal = document.getElementById('backupModal');
+      if(!modal) return;
+      modal.classList.toggle('hidden');
+      modal.classList.toggle('flex');
+    }
+
+    // ==========================================
+    // CADANGKAN & PULIHKAN DATA
+    // ==========================================
+    function downloadBackupFile() {
+      const backupData = {
+        version: "3.0",
+        exportDate: new Date().toISOString(),
+        profile: profile,
+        entries: entries
+      };
+
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      const now = new Date();
+      const dateTag = `${now.getFullYear()}_${String(now.getMonth()+1).padStart(2,'0')}_${String(now.getDate()).padStart(2,'0')}`;
+      downloadAnchor.setAttribute("download", `Backup_LKH_Semua_Tahun_${dateTag}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+
+      showToast("File cadangan berhasil diunduh!");
+    }
+
+    function handleRestoreFile(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          if (parsed && Array.isArray(parsed.entries)) {
+            entries = parsed.entries;
+            if (parsed.profile) {
+              profile = { ...profile, ...parsed.profile };
+            }
+            saveEntriesToStorage();
+            localStorage.setItem(STORAGE_KEY_PROFILE, JSON.stringify(profile));
+            renderProfileForm();
+            renderLkhDoc();
+            toggleBackupModal();
+            showToast(`Berhasil memulihkan ${entries.length} data kegiatan LKH!`);
+          } else {
+            alert("Format file cadangan tidak sesuai.");
+          }
+        } catch(err) {
+          console.error(err);
+          alert("Gagal membaca file cadangan. Pastikan file berformat .json yang valid.");
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = '';
+    }
+  </script>
+</body>
+</html>
